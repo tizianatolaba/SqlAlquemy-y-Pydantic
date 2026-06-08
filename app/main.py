@@ -1,37 +1,55 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+import crud
+import schemas
+from database import get_db
 
 app = FastAPI()
 
-# Definición del modelo de datos para validación
-class Producto(BaseModel):
-    nombre: str
-    precio: float
-    en_stock: bool
+@app.get("/")
+def inicio():
+    return {"mensaje": "API funcionando correctamente"}
 
-# Base de datos en memoria (Lista de objetos Producto)
-productos = []
 
-# 1. LISTAR PRODUCTOS (GET)
-@app.get("/productos")
-def listar_productos():
-    return {"productos": productos}
+@app.get("/productos", response_model=list[schemas.ProductoResponse])
+def listar_productos(db: Session = Depends(get_db)):
+    return crud.obtener_productos(db)
 
-# 2. AGREGAR PRODUCTO CON MODELO (POST)
-@app.post("/productos")
-def agregar_producto(producto: Producto):
-    productos.append(producto)
-    return {"mensaje": "Producto agregado", "producto": producto}
 
-# 3. ACTUALIZAR PRODUCTO (PUT)
-# Nota: El documento mantiene la actualización simple por nombre en esta sección
-@app.put("/productos/{id}")
-def actualizar_producto(id: int, nombre: str):
-    productos[id] = nombre
-    return {"mensaje": "Producto actualizado", "producto": nombre}
+@app.post("/productos", response_model=schemas.ProductoResponse)
+def agregar_producto(
+    producto: schemas.ProductoCreate,
+    db: Session = Depends(get_db)
+):
+    return crud.crear_producto(db, producto)
 
-# 4. ELIMINAR PRODUCTO (DELETE)
-@app.delete("/productos/{id}")
-def eliminar_producto(id: int):
-    eliminado = productos.pop(id)
-    return {"mensaje": "Producto eliminado", "producto": eliminado}
+
+@app.put("/productos/{producto_id}")
+def actualizar_producto(
+    producto_id: int,
+    datos: schemas.ProductoCreate,
+    db: Session = Depends(get_db)
+):
+    producto = crud.actualizar_producto(db, producto_id, datos)
+
+    if not producto:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado"
+        )
+
+    return producto
+
+
+@app.post("/categorias", response_model=schemas.CategoriaResponse)
+def crear_categoria(
+    categoria: schemas.CategoriaCreate,
+    db: Session = Depends(get_db)
+):
+    return crud.crear_categoria(db, categoria)
+
+
+@app.get("/categorias", response_model=list[schemas.CategoriaResponse])
+def listar_categorias(db: Session = Depends(get_db)):
+    return crud.obtener_categoria(db)
